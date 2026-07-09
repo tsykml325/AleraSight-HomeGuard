@@ -1,0 +1,12 @@
+{
+  "name": "AleraSight HomeGuard",
+  "description": "Sistem Informasi Deteksi Dini Kebakaran Berbasis IoT Terpadu dengan Visualisasi GIS, Monitoring Real-time, Laporan Analitik, dan Notifikasi Presisi.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "IoT Monitoring",
+    "GIS Mapping",
+    "Data Analytics"
+  ]
+}
