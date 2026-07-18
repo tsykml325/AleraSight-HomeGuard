@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { useAppState } from '../context/StateContext';
-import { Flame, ShieldCheck, AlertTriangle, Layers, MapPin, Search } from 'lucide-react';
+import { Flame, ShieldCheck, AlertTriangle, Layers, MapPin, Search, Camera, Cpu, Video } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 // Fix for default marker icons in Leaflet with React
@@ -50,7 +50,7 @@ function ChangeMapCenter({ center }: { center: [number, number] }) {
 }
 
 export function MapView() {
-  const { devices, settings } = useAppState();
+  const { devices, settings, activeDeviceId, visionFireDetected, raspiOnline } = useAppState();
   const [mapType, setMapType] = useState<'street' | 'satellite' | 'dark'>('dark');
   const [filterStatus, setFilterStatus] = useState<'all' | 'aman' | 'waspada' | 'bahaya'>('all');
   const [showRadius, setShowRadius] = useState(true);
@@ -128,7 +128,7 @@ export function MapView() {
         "bg-white border border-slate-200 overflow-hidden flex flex-col lg:flex-row transition-all duration-300",
         isFullscreen 
           ? "fixed inset-0 z-50 h-screen w-screen rounded-none border-0" 
-          : "rounded-[2.5rem] shadow-xl h-[700px]"
+          : "rounded-[2.5rem] shadow-xl h-auto lg:h-[700px]"
       )}>
         {/* Left side controller panels */}
         <div className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-slate-100 p-6 flex flex-col justify-between shrink-0 bg-slate-50/50">
@@ -212,7 +212,7 @@ export function MapView() {
         </div>
 
         {/* Map Container Area */}
-        <div className="flex-1 h-full relative">
+        <div className="flex-1 h-[450px] lg:h-full relative">
           {/* Fullscreen control toggle */}
           <button 
             type="button"
@@ -295,28 +295,85 @@ export function MapView() {
                   icon={getMarkerIcon(dev.status)}
                 >
                   <Popup>
-                    <div className="p-4 min-w-[220px]">
-                      <h3 className="font-black text-slate-900 italic uppercase border-b border-slate-100 pb-2 mb-2 text-base">{dev.name}</h3>
+                    <div className="p-4 w-[280px] font-sans">
+                      <h3 className="font-black text-slate-900 italic uppercase border-b border-slate-150 pb-2 mb-3 text-sm flex items-center justify-between">
+                        <span>{dev.name}</span>
+                      </h3>
                       
+                      {/* Live Camera Snapshot Viewport Frame in Popup */}
+                      <div className="relative bg-slate-950 h-32 rounded-2xl overflow-hidden border border-slate-800 flex flex-col justify-between p-3 text-[8px] font-mono text-slate-400 mb-3 shadow-inner">
+                        {/* Scanlines Overlay */}
+                        <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] opacity-30 z-10"></div>
+                        
+                        {/* Watermark Details */}
+                        <div className="relative z-20 flex justify-between uppercase">
+                          <span>CAM-04 // {dev.id}</span>
+                          <span className="text-right">LIVE FEED</span>
+                        </div>
+
+                        {/* Middle status indicator/reticle */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          {dev.status === 'bahaya' ? (
+                            <div className="border-2 border-dashed border-red-500 rounded-lg p-2 bg-red-950/20 text-center animate-pulse z-20">
+                              <Flame className="w-6 h-6 text-red-500 mx-auto animate-bounce" />
+                              <span className="text-red-400 font-bold block text-[8px] mt-0.5 uppercase tracking-wider">FIRE DETECTED</span>
+                            </div>
+                          ) : dev.status === 'waspada' ? (
+                            <div className="border border-dashed border-amber-500 rounded-lg p-2 bg-amber-950/10 text-center z-20">
+                              <AlertTriangle className="w-5 h-5 text-amber-500 mx-auto animate-pulse" />
+                              <span className="text-amber-400 font-bold block text-[8px] mt-0.5 uppercase tracking-wider">POTENSI API</span>
+                            </div>
+                          ) : (
+                            <div className="border border-dashed border-emerald-500/30 rounded-lg p-2 bg-emerald-950/5 text-center z-20">
+                              <ShieldCheck className="w-5 h-5 text-emerald-500/70 mx-auto" />
+                              <span className="text-emerald-500/60 font-bold block text-[8px] mt-0.5 uppercase tracking-wider">SAFE ZONE</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Bottom stats overlay */}
+                        <div className="relative z-20 flex justify-between items-end uppercase text-[7px] text-slate-500">
+                          <span>EDGE: PI 5</span>
+                          <span>CONF: {dev.status === 'bahaya' ? '98.4%' : dev.status === 'waspada' ? '64.2%' : '12.1%'}</span>
+                        </div>
+                      </div>
+
                       <div className="space-y-2 text-[10px] font-bold">
-                        <div className="flex justify-between">
-                          <span className="text-slate-400 uppercase">NODE ID</span>
-                          <span className="font-mono text-slate-700">{dev.id}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400 uppercase">STATUS</span>
+                        <div className="flex justify-between items-center bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-slate-400 uppercase">Status Api:</span>
                           <span className={cn(
-                            "px-2 py-0.5 rounded-md text-[8px] font-black uppercase text-white",
+                            "px-2 py-0.5 rounded-lg text-[9px] font-black uppercase text-white shadow-sm",
                             dev.status === 'aman' ? 'bg-emerald-500' : dev.status === 'waspada' ? 'bg-amber-500' : 'bg-red-500 animate-pulse'
-                          )}>{dev.status}</span>
+                          )}>
+                            {dev.status === 'bahaya' ? 'Api Terdeteksi' : dev.status === 'waspada' ? 'Potensi Api' : 'Tidak Terdeteksi'}
+                          </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400 uppercase">GARIS LINTANG</span>
-                          <span className="font-mono text-slate-700">{dev.location.lat.toFixed(4)}</span>
+
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                          <span className="text-slate-400 uppercase">Confidence Score:</span>
+                          <span className={cn(
+                            "font-mono text-slate-800 font-extrabold",
+                            dev.status === 'bahaya' ? 'text-red-600' : dev.status === 'waspada' ? 'text-amber-600' : 'text-emerald-600'
+                          )}>
+                            {dev.status === 'bahaya' ? '98.42%' : dev.status === 'waspada' ? '64.20%' : '12.15%'}
+                          </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400 uppercase">GARIS BUJUR</span>
-                          <span className="font-mono text-slate-700">{dev.location.lng.toFixed(4)}</span>
+
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                          <span className="text-slate-400 uppercase">Waktu Deteksi:</span>
+                          <span className="text-slate-700">
+                            {dev.status === 'bahaya' ? 'Real-Time (Baru Saja)' : 'Siklus Berkala'}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                          <span className="text-slate-400 uppercase">Hardware AI:</span>
+                          <span className="text-slate-700">RasPi 5 + Hailo-8</span>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[9px] text-slate-400 font-mono">
+                          <span>LAT: {dev.location.lat.toFixed(4)}</span>
+                          <span>LNG: {dev.location.lng.toFixed(4)}</span>
                         </div>
                       </div>
                     </div>
