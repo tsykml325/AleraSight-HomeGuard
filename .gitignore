@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+laravel-homeguard/vendor/
+laravel-homeguard/node_modules/
+laravel-homeguard/.env
+laravel-homeguard/public/hot
+laravel-homeguard/public/storage
+laravel-homeguard/storage/*.key
