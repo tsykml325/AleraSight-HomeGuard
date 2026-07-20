@@ -27,6 +27,11 @@
     .leaflet-popup-close-button {
         color: #94a3b8 !important;
     }
+
+    .glow-red {
+        box-shadow: 0 0 20px rgba(244, 63, 94, 0.4);
+        border-color: rgba(244, 63, 94, 0.5) !important;
+    }
 </style>
 
 <div class="row g-4 align-items-center mb-5">
@@ -57,14 +62,14 @@
     </div>
     
     <div class="col-xl-3 col-md-6">
-        <div class="card-custom d-flex justify-content-between align-items-center border-danger border-opacity-10">
+        <div class="card-custom d-flex justify-content-between align-items-center border-danger border-opacity-10 @if($activeFires > 0) glow-red @endif">
             <div>
                 <p class="text-secondary text-uppercase small fw-bold mb-1">Status Kebakaran</p>
                 <h3 class="display-font {{ $activeFires > 0 ? 'text-danger animate-pulse' : 'text-success' }} mb-0">
                     {{ $activeFires > 0 ? $activeFires . ' Titik Api' : 'Aman' }}
                 </h3>
             </div>
-            <div class="p-3 rounded-4 {{ $activeFires > 0 ? 'bg-danger text-danger' : 'bg-success bg-opacity-10 text-success' }}">
+            <div class="p-3 rounded-4 {{ $activeFires > 0 ? 'bg-danger text-white' : 'bg-success bg-opacity-10 text-success' }}">
                 <i data-lucide="flame" class="w-6 h-6"></i>
             </div>
         </div>
@@ -109,7 +114,13 @@
 
                 <!-- Snapshot Camera Frame -->
                 <div class="position-relative rounded-4 overflow-hidden border border-secondary border-opacity-10 mb-4 bg-black" style="height: 240px;">
-                    <img src="https://images.unsplash.com/photo-1508873696983-2df519f0397e?w=600&auto=format&fit=crop&q=60" alt="Snapshot AI Vision" class="w-100 h-100 object-fit-cover opacity-75">
+                    @if($activeFires > 0)
+                        <img src="https://images.unsplash.com/photo-1508873696983-2df519f0397e?w=600&auto=format&fit=crop&q=60" alt="Snapshot AI Vision" class="w-100 h-100 object-fit-cover opacity-75">
+                    @elseif($warnings > 0)
+                        <img src="https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop&q=60" alt="Snapshot AI Vision" class="w-100 h-100 object-fit-cover opacity-75">
+                    @else
+                        <img src="https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop&q=60" alt="Snapshot AI Vision" class="w-100 h-100 object-fit-cover opacity-50">
+                    @endif
                     
                     <!-- Scanlines overlay for techy visual vibe -->
                     <div class="position-absolute top-0 start-0 w-100 h-100 pointer-events-none" style="background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%); background-size: 100% 4px; opacity: 0.3;"></div>
@@ -125,13 +136,13 @@
 
                     <div class="position-absolute top-3 start-3 d-flex gap-2">
                         <span class="badge bg-dark bg-opacity-75 text-white px-2.5 py-1.5 rounded-3 d-flex align-items-center gap-1.5 code-font" style="font-size: 10px;">
-                            <span class="rounded-circle bg-success d-inline-block" style="width: 6px; height: 6px;"></span>
+                            <span class="rounded-circle {{ $activeFires > 0 ? 'bg-danger' : 'bg-success' }} d-inline-block" style="width: 6px; height: 6px; animation: pulse 1s infinite;"></span>
                             CCTV LIVE FEED
                         </span>
                     </div>
 
                     <div class="position-absolute bottom-3 start-3 end-3 d-flex justify-content-between text-white-50 code-font" style="font-size: 9px;">
-                        <span>CAM_02 (DAPUR UTAMA)</span>
+                        <span>CAM_DAPUR (SHT20 CONVERGENT)</span>
                         <span>CONF: {{ $activeFires > 0 ? '98.42%' : '12.15%' }}</span>
                     </div>
                 </div>
@@ -142,7 +153,7 @@
                         <div class="p-3 rounded-4 bg-secondary bg-opacity-10 text-center">
                             <p class="text-secondary small fw-bold mb-1 uppercase text-xs" style="font-size: 10px;">Status Api</p>
                             @if($activeFires > 0)
-                                <span class="badge bg-danger text-white py-1.5 px-3 rounded-3 fw-bold uppercase animate-pulse">API TERDETEKSI</span>
+                                <span class="badge bg-danger text-white py-1.5 px-3 rounded-3 fw-bold uppercase">API TERDETEKSI</span>
                             @elseif($warnings > 0)
                                 <span class="badge bg-warning text-dark py-1.5 px-3 rounded-3 fw-bold uppercase">POTENSI API</span>
                             @else
@@ -216,6 +227,96 @@
                 <div class="position-relative">
                     <div id="gis-map"></div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-5">
+    <!-- Chart Panel -->
+    <div class="col-lg-8">
+        <div class="card-custom">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h4 class="text-white m-0">SHT20 & MQ-2 Telemetri Tren</h4>
+                    <p class="text-secondary small m-0 mt-1">Grafik riwayat fluktuasi Suhu (°C) dan Level Gas (ppm) dari sensor.</p>
+                </div>
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-10 px-2.5 py-1.5 code-font text-xs">
+                    REAL-TIME SYNC
+                </span>
+            </div>
+
+            <!-- ChartJS Container -->
+            <div style="height: 310px; width: 100%;">
+                <canvas id="telemetryChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Developer IoT Simulator Panel -->
+    <div class="col-lg-4">
+        <div class="card-custom h-100 d-flex flex-column justify-content-between">
+            <div>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="text-white m-0">IoT Simulator & Trigger</h4>
+                    <span class="badge bg-warning bg-opacity-10 text-warning px-2.5 py-1 text-xs uppercase code-font fw-bold">Test Mode</span>
+                </div>
+                <p class="text-secondary text-xs leading-relaxed mb-4" style="font-size: 12px;">
+                    Simulasikan perubahan parameter suhu & gas secara dinamis untuk menguji integrasi notifikasi Telegram dan aktivasi sirine secara langsung tanpa perangkat fisik.
+                </p>
+
+                <form action="{{ route('simulator.trigger') }}" method="POST">
+                    @csrf
+                    <div class="mb-3">
+                        <label for="sim_device" class="form-label text-white-50 small fw-semibold">Pilih Perangkat Node</label>
+                        <select name="device_id" id="sim_device" class="form-select form-control-custom" required>
+                            @foreach($gisDevices as $dev)
+                                <option value="{{ $dev->id }}">{{ $dev->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-white-50 small fw-semibold d-block">Simulasi Kondisi</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="status" id="status_safe" value="aman" checked>
+                            <label class="btn btn-outline-success text-xs py-2 fw-bold" for="status_safe">AMAN</label>
+
+                            <input type="radio" class="btn-check" name="status" id="status_warn" value="waspada">
+                            <label class="btn btn-outline-warning text-xs py-2 fw-bold" for="status_warn">WASPADA</label>
+
+                            <input type="radio" class="btn-check" name="status" id="status_danger" value="bahaya">
+                            <label class="btn btn-outline-danger text-xs py-2 fw-bold" for="status_danger">BAHAYA</label>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-4">
+                        <div class="col-6">
+                            <label for="confidence_score" class="form-label text-white-50 small fw-semibold">Confidence (%)</label>
+                            <input type="number" step="0.01" name="confidence_score" id="confidence_score" class="form-control form-control-custom code-font text-center" value="95.50" min="0" max="100" required>
+                        </div>
+                        <div class="col-6">
+                            <label for="alarm_source" class="form-label text-white-50 small fw-semibold">Sumber Input</label>
+                            <select name="alarm_source" id="alarm_source" class="form-select form-control-custom text-xs" required>
+                                <option value="combination">IoT + AI Vision</option>
+                                <option value="sensor">Sensor MQ-2 Only</option>
+                                <option value="ai_vision">AI Vision Only</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-custom btn-accent w-100 d-flex align-items-center justify-content-center gap-2 mb-2 py-2.5">
+                        <i data-lucide="radio" class="w-4 h-4"></i>
+                        <span>Kirim Sinyal Telemetri</span>
+                    </button>
+                </form>
+
+                <form action="{{ route('simulator.reset-all') }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin me-reset semua stasiun ke status normal AMAN?')">
+                    @csrf
+                    <button type="submit" class="btn btn-custom btn-outline-light border-secondary w-100 text-xs py-2">
+                        Reset Semua Ke Kondisi Aman
+                    </button>
+                </form>
             </div>
         </div>
     </div>
@@ -309,9 +410,12 @@
 @section('scripts')
 <!-- Leaflet Map JS inside Laravel -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- ChartJS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        // Center of Indonesia / South Jakarta coordinates for demo matching seeder
+        // --- 1. LEAFLET MAP INITIALIZATION ---
         var mapCenter = [-6.2000, 106.8166];
         var map = L.map('gis-map', {
             zoomControl: false,
@@ -330,18 +434,15 @@
             var color = '#10b981'; // Default Green (safe)
             var statusText = 'Tidak Terdeteksi';
             var score = '12.15%';
-            var snapshotText = 'Safe Zone';
             
             if (device.status === 'bahaya') {
                 color = '#f43f5e'; // Red
                 statusText = 'Api Terdeteksi';
                 score = '98.42%';
-                snapshotText = 'Active Fire Flame';
             } else if (device.status === 'waspada') {
                 color = '#f59e0b'; // Amber
                 statusText = 'Potensi Api';
                 score = '64.20%';
-                snapshotText = 'Heat Signatures Detected';
             }
 
             // Create customized Leaflet circle marker for a premium layout
@@ -396,6 +497,168 @@
         // Recenter click trigger
         document.getElementById('btn-recenter').addEventListener('click', function () {
             map.setView(mapCenter, 14, { animate: true });
+        });
+
+        // --- 2. CHARTJS TELEMETRY CHART ---
+        // Dynamically extract timeline points from the seeder-generated log data
+        var logs = @json($latestLogs);
+        logs.reverse(); // Chronological order
+
+        var labels = [];
+        var gasData = [];
+        var tempData = [];
+
+        // Seed default points if database log entries are empty, otherwise read from DB logs
+        if (logs.length > 0) {
+            logs.forEach(function (log) {
+                var timeString = new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                labels.push(timeString);
+                
+                // Mock realistic gas level ppm and temp based on log status
+                if (log.status === 'Api Terdeteksi') {
+                    gasData.push(Math.round(280 + (log.confidence_score * 4.5)));
+                    tempData.push(Math.round(45 + (log.confidence_score * 0.35)));
+                } else if (log.status === 'Potensi Api') {
+                    gasData.push(Math.round(150 + (log.confidence_score * 2.1)));
+                    tempData.push(Math.round(32 + (log.confidence_score * 0.15)));
+                } else {
+                    gasData.push(Math.round(50 + (log.confidence_score * 0.5)));
+                    tempData.push(Math.round(24 + (log.confidence_score * 0.1)));
+                }
+            });
+        } else {
+            // Default placeholder dataset
+            labels = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00'];
+            gasData = [65, 70, 68, 72, 110, 380, 80];
+            tempData = [25, 26, 25, 27, 34, 58, 29];
+        }
+
+        var ctx = document.getElementById('telemetryChart').getContext('2d');
+        
+        // Linear gradients
+        var gasGradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gasGradient.addColorStop(0, 'rgba(59, 130, 246, 0.4)');
+        gasGradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+
+        var tempGradient = ctx.createLinearGradient(0, 0, 0, 300);
+        tempGradient.addColorStop(0, 'rgba(244, 63, 94, 0.4)');
+        tempGradient.addColorStop(1, 'rgba(244, 63, 94, 0.0)');
+
+        var telemetryChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'MQ-2 Gas (ppm)',
+                        data: gasData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: gasGradient,
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        yAxisID: 'yGas',
+                        pointBackgroundColor: '#3b82f6',
+                        pointBorderColor: '#ffffff',
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: 'DHT22 Suhu (°C)',
+                        data: tempData,
+                        borderColor: '#f43f5e',
+                        backgroundColor: tempGradient,
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        yAxisID: 'yTemp',
+                        pointBackgroundColor: '#f43f5e',
+                        pointBorderColor: '#ffffff',
+                        pointHoverRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#94a3b8',
+                            font: {
+                                family: 'Inter',
+                                weight: '600',
+                                size: 11
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#101726',
+                        titleColor: '#ffffff',
+                        bodyColor: '#f1f5f9',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 12
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.03)'
+                        },
+                        ticks: {
+                            color: '#64748b',
+                            font: {
+                                family: 'Fira Code',
+                                size: 10
+                            }
+                        }
+                    },
+                    yGas: {
+                        type: 'linear',
+                        position: 'left',
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        ticks: {
+                            color: '#3b82f6',
+                            font: {
+                                family: 'Fira Code',
+                                size: 10
+                            }
+                        }
+                    },
+                    yTemp: {
+                        type: 'linear',
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false // Avoid grid overlaps
+                        },
+                        ticks: {
+                            color: '#f43f5e',
+                            font: {
+                                family: 'Fira Code',
+                                size: 10
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Add dynamically updated style properties to condition buttons
+        var statusRadios = document.querySelectorAll('input[name="status"]');
+        var confidenceInput = document.getElementById('confidence_score');
+        statusRadios.forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                if (this.value === 'aman') {
+                    confidenceInput.value = '12.15';
+                } else if (this.value === 'waspada') {
+                    confidenceInput.value = '64.20';
+                } else if (this.value === 'bahaya') {
+                    confidenceInput.value = '98.42';
+                }
+            });
         });
     });
 </script>

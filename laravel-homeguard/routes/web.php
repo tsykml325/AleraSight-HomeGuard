@@ -4,6 +4,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FireLogController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\SimulatorController;
 use Illuminate\Support\Facades\Route;
 
 // Guest Routes
@@ -26,7 +28,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/devices/{device}/edit', [DeviceController::class, 'edit'])->name('devices.edit');
         Route::put('/devices/{device}', [DeviceController::class, 'update'])->name('devices.update');
         Route::delete('/devices/{device}', [DeviceController::class, 'destroy'])->name('devices.destroy');
+
+        // Manage Users (Admin only)
+        Route::resource('users', UserController::class)->except(['show']);
     });
+    
     // Operator and Admin can view devices
     Route::get('/devices', [DeviceController::class, 'index'])->name('devices.index');
 
@@ -35,6 +41,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Reports & Analytics (Admin & Operator)
     Route::get('/reports', [FireLogController::class, 'reports'])->name('reports.index');
+
+    // Simulator Triggers
+    Route::post('/simulator/trigger', [SimulatorController::class, 'trigger'])->name('simulator.trigger');
+    Route::post('/simulator/reset-all', [SimulatorController::class, 'resetAll'])->name('simulator.reset-all');
 
     // Settings (Admin only)
     Route::middleware(['role:admin'])->group(function () {

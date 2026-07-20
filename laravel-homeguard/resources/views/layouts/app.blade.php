@@ -209,6 +209,10 @@
                 <i data-lucide="settings"></i>
                 <span>Pengaturan AI</span>
             </a>
+            <a href="{{ route('users.index') }}" class="nav-item-link {{ Request::routeIs('users.*') ? 'active' : '' }}">
+                <i data-lucide="users"></i>
+                <span>Kelola Anggota</span>
+            </a>
             @endif
 
             <hr class="my-4 border-secondary opacity-25">

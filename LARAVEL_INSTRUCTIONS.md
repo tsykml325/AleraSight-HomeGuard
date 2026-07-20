@@ -8,11 +8,14 @@ Seluruh file kode sumber Laravel lengkap telah dibuat di dalam folder `/laravel-
 
 ## 🚀 Fitur Utama Laravel 12 HomeGuard
 1. **Multi-Role Authentication**: Login khusus untuk **Administrator** dan **Operator** dengan hak akses yang terproteksi (Middleware).
-2. **Dashboard Real-Time**: Ringkasan data kebakaran, status perangkat, confidence score rata-rata, dan peta interaktif mini.
-3. **Master Data Perangkat (CRUD)**: Create, Read, Update, Delete untuk perangkat IoT dan Kamera CCTV.
-4. **Master Data Deteksi Api (Fire Logs & Raw Data)**: Riwayat klasifikasi visual, confidence score, snapshot URL, dan status mitigasi.
-5. **Sistem Notifikasi & Alarm**: Integrasi status buzzer sirine dan simulasi pengiriman notifikasi Telegram Bot.
-6. **Database Seeding**: Otomatis membuat akun admin, operator, dan contoh perangkat awal untuk demo langsung.
+2. **Dashboard Real-Time**: Ringkasan data kebakaran, status perangkat, confidence score rata-rata, dan peta interaktif GIS dengan penanda dinamis.
+3. **Interactive IoT Simulator & Calibration**: Panel simulator langsung pada dashboard untuk memicu simulasi kondisi AMAN, WASPADA, atau BAHAYA secara instan serta mengubah confidence score dan sumber sensor.
+4. **SHT20 & MQ-2 Telemetry Chart**: Visualisasi riwayat telemetri berupa grafik interaktif interaksi Suhu (°C) dan Level Gas (ppm) yang didesain modern menggunakan Chart.js.
+5. **Master Data Perangkat (CRUD)**: Create, Read, Update, Delete untuk perangkat IoT, tipe, lokasi latitude/longitude, dan status keaktifan kamera.
+6. **Master Data Anggota Tim (CRUD)**: Kelola pengguna, telepon, email, password, dan pembagian hak akses (eksklusif Admin).
+7. **Master Data Deteksi Api (Fire Logs & Raw Data)**: Riwayat klasifikasi visual, confidence score, snapshot URL, dan status mitigasi.
+8. **Sistem Notifikasi & Alarm**: Integrasi status buzzer sirine dan simulasi pengiriman notifikasi Telegram Bot.
+9. **Database Seeding**: Otomatis membuat akun admin, operator, dan contoh perangkat awal untuk demo langsung.
 
 ---
 
