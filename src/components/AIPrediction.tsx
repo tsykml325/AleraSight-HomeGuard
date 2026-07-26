@@ -8,9 +8,11 @@ import {
 import { cn } from '../lib/utils';
 
 // ========== Konfigurasi dari Environment Variable (diisi di Vercel) ==========
-const CCTV_URL = process.env.NEXT_PUBLIC_CCTV_URL || '';
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// PENTING: Project ini pakai Vite, bukan Next.js — env var HARUS pakai prefix VITE_
+// dan diakses lewat import.meta.env, bukan process.env
+const CCTV_URL = import.meta.env.VITE_CCTV_URL || '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 interface DeteksiTerbaru {
   hasil: 'API' | 'BUKAN_API';
