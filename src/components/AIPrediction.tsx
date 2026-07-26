@@ -7,6 +7,19 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+// ========== Konfigurasi dari Environment Variable (diisi di Vercel) ==========
+const CCTV_URL = process.env.NEXT_PUBLIC_CCTV_URL || '';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+interface DeteksiTerbaru {
+  hasil: 'API' | 'BUKAN_API';
+  confidence: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  waktu_deteksi: string;
+}
+
 export function AIPrediction() {
   const { 
     raspiOnline, setRaspiOnline,
@@ -15,6 +28,67 @@ export function AIPrediction() {
   } = useAppState();
 
   const activeDevice = devices.find(d => d.id === activeDeviceId) || devices[0];
+
+  // ========== State untuk Snapshot CCTV Asli ==========
+  const [imgSrc, setImgSrc] = useState(`${CCTV_URL}?_=${Date.now()}`);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    if (!CCTV_URL) return;
+    const interval = setInterval(() => {
+      setImgSrc(`${CCTV_URL}?_=${Date.now()}`);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ========== State untuk Data Deteksi Asli dari Supabase ==========
+  const [deteksiTerbaru, setDeteksiTerbaru] = useState<DeteksiTerbaru | null>(null);
+  const [backendError, setBackendError] = useState(false);
+
+  useEffect(() => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+
+    const fetchLatestDetection = async () => {
+      try {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/deteksi_cv?select=hasil,confidence,latitude,longitude,waktu_deteksi&order=waktu_deteksi.desc&limit=1`,
+          {
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+          }
+        );
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        const data: DeteksiTerbaru[] = await res.json();
+        if (data.length > 0) {
+          setDeteksiTerbaru(data[0]);
+          setVisionFireDetected(data[0].hasil === 'API');
+          setBackendError(false);
+        }
+      } catch (err) {
+        console.error('[SUPABASE] Gagal ambil data deteksi terbaru:', err);
+        setBackendError(true);
+      }
+    };
+
+    fetchLatestDetection();
+    const interval = setInterval(fetchLatestDetection, 5000);
+    return () => clearInterval(interval);
+  }, [setVisionFireDetected]);
+
+  // Fallback ke simulasi kalau data asli belum tersedia (env var belum diisi / fetch belum sukses)
+  const displayConfidence = deteksiTerbaru?.confidence != null
+    ? `${(deteksiTerbaru.confidence * 100).toFixed(1)}%`
+    : (visionFireDetected ? '97.3%' : '88.4%');
+
+  const displayWaktu = deteksiTerbaru?.waktu_deteksi
+    ? new Date(deteksiTerbaru.waktu_deteksi).toLocaleTimeString('id-ID')
+    : '12:21:03';
+
+  const displayKoordinat = deteksiTerbaru?.latitude != null && deteksiTerbaru?.longitude != null
+    ? `${deteksiTerbaru.latitude.toFixed(4)}, ${deteksiTerbaru.longitude.toFixed(4)}`
+    : (activeDevice.location ? `${activeDevice.location.lat.toFixed(4)}, ${activeDevice.location.lng.toFixed(4)}` : '-6.8922, 107.6181');
 
   // Fluctuating CPU usage simulation
   const [simulatedCpu, setSimulatedCpu] = useState(21.5);
@@ -29,7 +103,7 @@ export function AIPrediction() {
   }, []);
 
   // Raspi Uptime Ticker
-  const [uptimeSeconds, setUptimeSeconds] = useState(1528); // Starts at 00:25:28 (1528 seconds)
+  const [uptimeSeconds, setUptimeSeconds] = useState(1528);
   useEffect(() => {
     const interval = setInterval(() => {
       setUptimeSeconds(prev => prev + 1);
@@ -44,7 +118,6 @@ export function AIPrediction() {
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Live simulation controls directly inside page for a superior prototype experience
   const handleToggleFire = (isFire: boolean) => {
     setVisionFireDetected(isFire);
     addAuditLog(
@@ -124,7 +197,7 @@ export function AIPrediction() {
               {visionFireDetected ? "Api" : "Bukan api"}
             </h2>
             <p className="text-[10px] font-bold text-zinc-500 mt-1.5 uppercase font-mono">
-              Confidence: {visionFireDetected ? "97.3%" : "88.4%"}
+              Confidence: {displayConfidence}
             </p>
           </div>
         </div>
@@ -143,7 +216,7 @@ export function AIPrediction() {
               {visionFireDetected ? "1" : "0"}
             </h2>
             <p className="text-[10px] font-bold text-zinc-500 mt-1.5 uppercase font-mono">
-              Terakhir: {visionFireDetected ? "12:21:03" : "—"}
+              Terakhir: {displayWaktu}
             </p>
           </div>
         </div>
@@ -195,10 +268,27 @@ export function AIPrediction() {
           <div className="relative aspect-video bg-zinc-950 rounded-2xl overflow-hidden border border-zinc-800 shadow-inner flex flex-col justify-between p-4 text-white">
             
             {/* Scanline overlay for raw tech look */}
-            <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.15)_50%)] bg-[length:100%_4px] opacity-40"></div>
+            <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.15)_50%)] bg-[length:100%_4px] opacity-40 z-10"></div>
+
+            {/* Snapshot CCTV Asli (menggantikan placeholder ikon kamera) */}
+            {CCTV_URL && !imgError ? (
+              <img
+                src={imgSrc}
+                alt="Snapshot CCTV"
+                className="absolute inset-0 w-full h-full object-cover"
+                onError={() => setImgError(true)}
+                onLoad={() => setImgError(false)}
+              />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <div className="p-5 rounded-full bg-zinc-900/50 border border-zinc-800/60 flex items-center justify-center">
+                  <Camera className="w-10 h-10 text-zinc-700" />
+                </div>
+              </div>
+            )}
 
             {/* Live Indicator Dot */}
-            <div className="relative z-10 flex justify-between items-center">
+            <div className="relative z-20 flex justify-between items-center">
               <div className="flex items-center gap-1.5 bg-black/60 px-2.5 py-1.5 rounded-lg border border-white/5">
                 <span className={cn(
                   "w-2.5 h-2.5 rounded-full",
@@ -213,20 +303,16 @@ export function AIPrediction() {
               </span>
             </div>
 
-            {/* Central icon backdrop */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <div className="p-5 rounded-full bg-zinc-900/50 border border-zinc-800/60 flex items-center justify-center">
-                <Camera className="w-10 h-10 text-zinc-700" />
-              </div>
-              {visionFireDetected && (
-                <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest mt-2 animate-pulse bg-rose-950/40 border border-rose-900/50 px-3 py-1 rounded-full">
+            {visionFireDetected && (
+              <div className="relative z-20 flex flex-col items-center justify-center flex-1 pointer-events-none">
+                <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest animate-pulse bg-rose-950/40 border border-rose-900/50 px-3 py-1 rounded-full">
                   ⚠️ BAHAYA: Api Terdeteksi
                 </span>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Bottom Info Badges inside feed */}
-            <div className="relative z-10 flex justify-between items-end">
+            <div className="relative z-20 flex justify-between items-end">
               <span className={cn(
                 "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider font-mono",
                 visionFireDetected ? "bg-rose-500 text-white" : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
@@ -235,7 +321,7 @@ export function AIPrediction() {
               </span>
               
               <span className="bg-black/80 border border-zinc-800 px-2 py-1 rounded text-[9px] font-mono text-zinc-400">
-                {visionFireDetected ? "97.3%" : "88.4%"}
+                {displayConfidence}
               </span>
             </div>
 
@@ -265,14 +351,14 @@ export function AIPrediction() {
             <div className="flex justify-between items-center py-2.5">
               <span className="text-[11px] font-extrabold text-zinc-400 uppercase tracking-wider">Confidence</span>
               <span className="text-[11px] font-extrabold text-zinc-200 font-mono">
-                {visionFireDetected ? "97.3%" : "88.4%"}
+                {displayConfidence}
               </span>
             </div>
 
             <div className="flex justify-between items-center py-2.5">
               <span className="text-[11px] font-extrabold text-zinc-400 uppercase tracking-wider">Deteksi terakhir</span>
               <span className="text-[11px] font-extrabold text-zinc-200 font-mono">
-                {visionFireDetected ? "12:21:03" : "12:21:03"}
+                {displayWaktu}
               </span>
             </div>
 
@@ -306,7 +392,7 @@ export function AIPrediction() {
             <div className="flex justify-between items-center py-2.5">
               <span className="text-[11px] font-extrabold text-zinc-400 uppercase tracking-wider">Koordinat</span>
               <span className="text-[11px] font-bold text-zinc-300 font-mono">
-                {activeDevice.location ? `${activeDevice.location.lat.toFixed(4)}, ${activeDevice.location.lng.toFixed(4)}` : "-6.8922, 107.6181"}
+                {displayKoordinat}
               </span>
             </div>
 
@@ -343,14 +429,14 @@ export function AIPrediction() {
               {/* Dynamic live simulation row if active */}
               {visionFireDetected && (
                 <tr className="bg-rose-500/5 font-bold text-rose-200">
-                  <td className="py-3.5 px-4 font-mono">12:21:03</td>
+                  <td className="py-3.5 px-4 font-mono">{displayWaktu}</td>
                   <td className="py-3.5 px-4">CNN/CCTV</td>
                   <td className="py-3.5 px-4">
                     <span className="px-2.5 py-1 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 font-black text-[9px] uppercase tracking-wider">
                       Api
                     </span>
                   </td>
-                  <td className="py-3.5 px-4 font-mono">97.3%</td>
+                  <td className="py-3.5 px-4 font-mono">{displayConfidence}</td>
                   <td className="py-3.5 px-4">Ruangan Tamu</td>
                   <td className="py-3.5 px-4">
                     <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/20 font-black text-[9px] uppercase tracking-wider">
