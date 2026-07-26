@@ -209,7 +209,7 @@ export function AIPrediction() {
                 </span>
               </div>
               <span className="text-[9px] font-mono text-zinc-400 bg-black/60 px-2 py-1 rounded">
-                YOLOv8n-Fire
+                CNN-Fire
               </span>
             </div>
 
