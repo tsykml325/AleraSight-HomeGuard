@@ -140,13 +140,6 @@ export function AIPrediction() {
         </div>
       )}
 
-      {/* DEBUG SEMENTARA - hapus setelah masalah env var selesai */}
-      <div className="bg-yellow-950/60 border-2 border-yellow-500 text-yellow-300 text-[10px] font-mono p-3 rounded-xl break-all">
-        <p>DEBUG CCTV_URL: "{CCTV_URL}"</p>
-        <p>DEBUG SUPABASE_URL: "{SUPABASE_URL}"</p>
-        <p>DEBUG SUPABASE_ANON_KEY length: {SUPABASE_ANON_KEY.length}</p>
-      </div>
-
       {/* Top Counters Dashboard Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
