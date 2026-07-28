@@ -272,8 +272,9 @@ export function AIPrediction() {
             {/* Scanline overlay for raw tech look */}
             <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.15)_50%)] bg-[length:100%_4px] opacity-40 z-10"></div>
 
-            {/* Snapshot CCTV Asli (menggantikan placeholder ikon kamera) */}
-            {CCTV_URL && !imgError ? (
+            {/* Snapshot CCTV Asli - SELALU dirender (tidak dihapus saat error) 
+                supaya bisa otomatis pulih begitu snapshot berikutnya berhasil */}
+            {CCTV_URL && (
               <img
                 src={imgSrc}
                 alt="Snapshot CCTV"
@@ -281,8 +282,11 @@ export function AIPrediction() {
                 onError={() => setImgError(true)}
                 onLoad={() => setImgError(false)}
               />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            )}
+
+            {/* Placeholder ditumpuk DI ATAS img (bukan menggantikan) saat error/belum ada URL */}
+            {(!CCTV_URL || imgError) && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-zinc-950">
                 <div className="p-5 rounded-full bg-zinc-900/50 border border-zinc-800/60 flex items-center justify-center">
                   <Camera className="w-10 h-10 text-zinc-700" />
                 </div>
