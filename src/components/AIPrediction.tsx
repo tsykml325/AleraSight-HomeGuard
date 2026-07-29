@@ -54,7 +54,7 @@ export function AIPrediction() {
     const fetchRiwayat = async () => {
       try {
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/deteksi_cv?select=hasil,confidence,latitude,longitude,waktu_deteksi&order=waktu_deteksi.desc&limit=10`,
+          `${SUPABASE_URL}/rest/v1/deteksi_cv?select=hasil,confidence,latitude,longitude,waktu_deteksi&order=waktu_deteksi.desc&limit=5`,
           {
             headers: {
               apikey: SUPABASE_ANON_KEY,
