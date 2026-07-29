@@ -164,13 +164,36 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser]);
 
   // 1. Core Databases
-  const [devices, setDevices] = useState<Device[]>([
-    { id: "DEV-001", name: "Gedung Utama - Ruang Server Lt. 3", location: { lat: -6.2088, lng: 106.8456 }, status: "aman", isActive: true, lastActive: new Date().toISOString() },
-    { id: "DEV-002", name: "Gedung B - Kantin Utama", location: { lat: -6.2100, lng: 106.8480 }, status: "aman", isActive: true, lastActive: new Date().toISOString() },
-    { id: "DEV-003", name: "Gedung C - Gudang Kimia", location: { lat: -6.2120, lng: 106.8400 }, status: "waspada", isActive: true, lastActive: new Date().toISOString() },
-    { id: "DEV-004", name: "Gedung D - Lab Fisika Lt. 1", location: { lat: -6.2050, lng: 106.8390 }, status: "aman", isActive: true, lastActive: new Date().toISOString() },
-    { id: "DEV-005", name: "Gedung E - Parkir Basement B2", location: { lat: -6.2150, lng: 106.8510 }, status: "aman", isActive: false, lastActive: new Date(Date.now() - 7200000).toISOString() },
-  ]);
+const [devices, setDevices] = useState<Device[]>([]);
+
+  //tambahan
+  useEffect(() => {
+    fetch("http://localhost:3000/api/devices")
+        .then(res => res.json())
+        .then(data => {
+
+            const mapped = data.map((item:any)=>({
+
+                id:item.id,
+                name:item.nama_perangkat,
+
+                location:{
+                    lat:item.latitude,
+                    lng:item.longitude
+                },
+
+                status:item.status,
+                isActive:true,
+                lastActive:item.updated_at
+
+            }));
+
+            setDevices(mapped);
+
+        })
+        .catch(err=>console.log(err));
+
+},[]);
 
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('alerasight_users');
