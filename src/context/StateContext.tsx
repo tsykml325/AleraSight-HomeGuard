@@ -89,7 +89,7 @@ interface AppState {
   activeDeviceId: string;
   raspiOnline: boolean;
   visionFireDetected: boolean;
-  
+
   // App UI Controls
   currentPage: string;
   setCurrentPage: (page: string) => void;
@@ -108,7 +108,7 @@ interface AppState {
   restartDevice: (id: string) => void;
   calibrateDevice: (id: string) => void;
   otaUpdateDevice: (id: string) => void;
-  
+
   addUser: (user: Omit<User, 'id'>) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
   deleteUser: (id: string) => void;
@@ -130,7 +130,7 @@ interface AppState {
   deleteBackup: (id: string) => void;
 
   updateSettings: (newSettings: Partial<AppState['settings']>) => void;
-  
+
   // Simulator setters
   setSimulatedGas: (val: number) => void;
   setSimulatedTemp: (val: number) => void;
@@ -144,7 +144,7 @@ interface AppState {
   setVisionFireDetected: (val: boolean) => void;
   setActiveDeviceId: (val: string) => void;
   triggerMockTelegramMessage: (message: string) => void;
-  
+
   // Batch triggers
   markAllNotificationsRead: () => void;
   deleteNotification: (id: string) => void;
@@ -236,6 +236,49 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
 
     fetchDevices();
     const interval = setInterval(fetchDevices, 7000); // refresh tiap 7 detik
+    return () => clearInterval(interval);
+  }, []);
+
+  // ========== Fetch status CCTV/Raspi terbaru dari Supabase ==========
+  // Menggantikan nilai dummy raspiOnline & visionFireDetected dengan data asli
+  // dari tabel deteksi_cv. Sebelumnya kedua nilai ini murni dikontrol manual
+  // lewat panel "Simulator IoT", sehingga tidak pernah sinkron dengan CCTV asli.
+  useEffect(() => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+
+    const headers = {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    };
+
+    const fetchStatusCCTV = async () => {
+      try {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/deteksi_cv?select=hasil,waktu_deteksi&order=waktu_deteksi.desc&limit=1`,
+          { headers }
+        );
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        const data = await res.json();
+
+        if (data && data.length > 0) {
+          const lastDetection = new Date(data[0].waktu_deteksi);
+          const diffMinutes = (Date.now() - lastDetection.getTime()) / 60000;
+
+          // Anggap Raspi offline kalau data terakhir lebih dari 2 menit lalu.
+          // Sesuaikan angka ini dengan seberapa sering Raspi normalnya mengirim data.
+          setRaspiOnline(diffMinutes < 2);
+          setVisionFireDetected(data[0].hasil === 'API');
+        } else {
+          setRaspiOnline(false);
+        }
+      } catch (err) {
+        console.error('[SUPABASE] Gagal ambil status CCTV:', err);
+        setRaspiOnline(false);
+      }
+    };
+
+    fetchStatusCCTV();
+    const interval = setInterval(fetchStatusCCTV, 5000); // polling tiap 5 detik
     return () => clearInterval(interval);
   }, []);
 
@@ -427,7 +470,7 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
         gas: simulatedGas,
         temperature: simulatedTemp,
         timestamp: new Date().toISOString(),
-        status: simulatedGas >= settings.gasThreshold || simulatedTemp >= settings.tempThreshold ? "bahaya" : 
+        status: simulatedGas >= settings.gasThreshold || simulatedTemp >= settings.tempThreshold ? "bahaya" :
                 simulatedGas >= (settings.gasThreshold * 0.6) || simulatedTemp >= (settings.tempThreshold * 0.8) ? "waspada" : "aman"
       };
 
