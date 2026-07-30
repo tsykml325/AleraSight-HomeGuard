@@ -62,6 +62,16 @@ export function MapView() {
   const [mapCenter, setMapCenter] = useState<[number, number]>([-6.2088, 106.8456]);
   const [hoveredCoords, setHoveredCoords] = useState<[number, number] | null>(null);
 
+  // Auto-pindah peta ke lokasi device pertama begitu data asli berhasil dimuat
+  // (supaya tidak diam di koordinat default Jakarta padahal device ada di lokasi lain)
+  const [hasAutoCentered, setHasAutoCentered] = useState(false);
+  useEffect(() => {
+    if (!hasAutoCentered && devices.length > 0) {
+      setMapCenter([devices[0].location.lat, devices[0].location.lng]);
+      setHasAutoCentered(true);
+    }
+  }, [devices, hasAutoCentered]);
+
   const tileUrls = {
     street: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -137,8 +147,6 @@ export function MapView() {
               <h3 className="font-black text-lg text-slate-900 italic uppercase tracking-tight">Peta GIS Profesional</h3>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Sistem informasi geografis mitigasi bahaya AleraSight</p>
             </div>
-
-
 
             {/* Map types switcher */}
             <div className="space-y-2">
@@ -255,10 +263,10 @@ export function MapView() {
               url={tileUrls[mapType]}
             />
 
-            {/* Custom Sector Area Overlay Layer */}
-            {showSectors && (
+            {/* Custom Sector Area Overlay Layer - sekarang ikut lokasi device pertama, bukan hardcode Jakarta */}
+            {showSectors && devices.length > 0 && (
               <Circle 
-                center={[-6.2088, 106.8456]}
+                center={[devices[0].location.lat, devices[0].location.lng]}
                 radius={1200}
                 pathOptions={{
                   color: '#3b82f6',
@@ -350,25 +358,15 @@ export function MapView() {
                         </div>
 
                         <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                          <span className="text-slate-400 uppercase">Confidence Score:</span>
-                          <span className={cn(
-                            "font-mono text-slate-800 font-extrabold",
-                            dev.status === 'bahaya' ? 'text-red-600' : dev.status === 'waspada' ? 'text-amber-600' : 'text-emerald-600'
-                          )}>
-                            {dev.status === 'bahaya' ? '98.42%' : dev.status === 'waspada' ? '64.20%' : '12.15%'}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
                           <span className="text-slate-400 uppercase">Waktu Deteksi:</span>
                           <span className="text-slate-700">
-                            {dev.status === 'bahaya' ? 'Real-Time (Baru Saja)' : 'Siklus Berkala'}
+                            {new Date(dev.lastActive).toLocaleTimeString('id-ID')}
                           </span>
                         </div>
 
                         <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
                           <span className="text-slate-400 uppercase">Hardware AI:</span>
-                          <span className="text-slate-700">RasPi 5 + Hailo-8</span>
+                          <span className="text-slate-700">RasPi 5 + MobileNetV2</span>
                         </div>
 
                         <div className="flex justify-between items-center text-[9px] text-slate-400 font-mono">
