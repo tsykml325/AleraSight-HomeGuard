@@ -287,7 +287,7 @@ export function Dashboard() {
                 {!raspiOnline ? "OFFLINE (LOST)" : visionFireDetected ? "🔥 ADA API (FIRE)" : "TIDAK ADA API"}
               </p>
               <span className="text-[8px] font-bold text-slate-400 block uppercase group-hover:text-teal-600 transition-colors">
-                {raspiOnline ? "✓ YOLOv8 Active" : "Periksa Daya"}
+                {raspiOnline ? "✓ CNN active" : "Periksa Daya"}
               </span>
             </div>
           </div>
