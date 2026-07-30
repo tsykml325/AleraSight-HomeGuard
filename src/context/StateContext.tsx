@@ -164,36 +164,80 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser]);
 
   // 1. Core Databases
-const [devices, setDevices] = useState<Device[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
 
-  //tambahan
+  // ========== Fetch devices dari Supabase (perangkat + lokasi GPS terbaru) ==========
+  // Menggantikan fetch ke "http://localhost:3000/api/devices" yang hanya bekerja
+  // di komputer lokal saat development, dan selalu gagal setelah di-deploy ke Vercel
+  // (karena localhost merujuk ke device milik pengunjung website, bukan server kita).
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
   useEffect(() => {
-    fetch("http://localhost:3000/api/devices")
-        .then(res => res.json())
-        .then(data => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
 
-            const mapped = data.map((item:any)=>({
+    const headers = {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    };
 
-                id:item.id,
-                name:item.nama_perangkat,
+    const fetchDevices = async () => {
+      try {
+        // 1. Ambil daftar perangkat
+        const resPerangkat = await fetch(
+          `${SUPABASE_URL}/rest/v1/perangkat?select=id,nama_perangkat,lokasi_ruangan`,
+          { headers }
+        );
+        if (!resPerangkat.ok) throw new Error(`Perangkat status ${resPerangkat.status}`);
+        const perangkatList = await resPerangkat.json();
 
-                location:{
-                    lat:item.latitude,
-                    lng:item.longitude
-                },
+        // 2. Ambil deteksi terbaru untuk SEMUA perangkat (cukup ambil beberapa ratus baris terbaru,
+        //    lalu ambil satu paling baru per perangkat_id di sisi JS)
+        const resDeteksi = await fetch(
+          `${SUPABASE_URL}/rest/v1/deteksi_cv?select=perangkat_id,hasil,confidence,latitude,longitude,waktu_deteksi&order=waktu_deteksi.desc&limit=200`,
+          { headers }
+        );
+        if (!resDeteksi.ok) throw new Error(`Deteksi status ${resDeteksi.status}`);
+        const deteksiList = await resDeteksi.json();
 
-                status:item.status,
-                isActive:true,
-                lastActive:item.updated_at
+        // Ambil deteksi TERBARU per perangkat_id
+        const latestByDevice: Record<string, any> = {};
+        for (const row of deteksiList) {
+          if (!latestByDevice[row.perangkat_id]) {
+            latestByDevice[row.perangkat_id] = row;
+          }
+        }
 
-            }));
+        const mapped: Device[] = perangkatList.map((p: any) => {
+          const latest = latestByDevice[p.id];
+          const status: 'aman' | 'waspada' | 'bahaya' =
+            latest?.hasil === 'API' ? 'bahaya' : 'aman';
 
-            setDevices(mapped);
+          return {
+            id: p.id,
+            name: p.nama_perangkat,
+            location: {
+              // Pakai koordinat dari deteksi terbaru (GPS asli).
+              // Fallback ke koordinat default kalau belum pernah ada deteksi sama sekali.
+              lat: latest?.latitude ?? -6.8922,
+              lng: latest?.longitude ?? 107.6181,
+            },
+            status,
+            isActive: true,
+            lastActive: latest?.waktu_deteksi || new Date().toISOString(),
+          } as Device;
+        });
 
-        })
-        .catch(err=>console.log(err));
+        setDevices(mapped);
+      } catch (err) {
+        console.error('[SUPABASE] Gagal ambil data devices:', err);
+      }
+    };
 
-},[]);
+    fetchDevices();
+    const interval = setInterval(fetchDevices, 7000); // refresh tiap 7 detik
+    return () => clearInterval(interval);
+  }, []);
 
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('alerasight_users');
