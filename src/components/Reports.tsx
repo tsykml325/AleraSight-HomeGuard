@@ -4,8 +4,10 @@ import { useAppState } from '../context/StateContext';
 import { cn } from '../lib/utils';
 
 export function Reports() {
-  const { devices, alarms, sensorData, addAuditLog } = useAppState();
+  const { devices, alarms, sensorData, addAuditLog, currentUser } = useAppState();
   const [reportType, setReportType] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
+  const [helpCenterText, setHelpCenterText] = useState('');
+  const isOperator = currentUser?.role === 'Operator';
 
   useEffect(() => {
     addAuditLog("VIEW_REPORTS", "system", "Membuka halaman cetak laporan");
@@ -218,6 +220,42 @@ Laporan ini sah secara digital dan bersumber dari cloud database gateway.
             </div>
           )}
         </div>
+      </div>
+      {/* Kolom Pusat Bantuan / Catatan Tambahan */}
+      <div className="pt-2">
+        <label
+          htmlFor="pusatBantuan"
+          className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 print:hidden"
+        >
+          Pusat Bantuan / Catatan Tambahan
+          {!isOperator && (
+            <span className="text-slate-300 normal-case font-semibold"> — hanya bisa diisi oleh Operator</span>
+          )}
+        </label>
+
+        {isOperator ? (
+          <textarea
+            id="pusatBantuan"
+            value={helpCenterText}
+            onChange={(e) => setHelpCenterText(e.target.value)}
+            placeholder="Tulis catatan, kontak pusat bantuan, atau keterangan tambahan di sini sebelum mencetak laporan..."
+            rows={3}
+            className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-900/20 print:hidden"
+          />
+        ) : (
+          <div className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-100 text-sm text-slate-500 font-medium whitespace-pre-wrap print:hidden">
+            {helpCenterText.trim() || 'Belum ada catatan dari Operator.'}
+          </div>
+        )}
+
+        {helpCenterText.trim() && (
+          <div className="hidden print:block mt-2 p-4 rounded-2xl border border-slate-200 text-sm text-slate-700 whitespace-pre-wrap">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+              Pusat Bantuan / Catatan
+            </span>
+            {helpCenterText}
+          </div>
+        )}
       </div>
     </div>
   );
