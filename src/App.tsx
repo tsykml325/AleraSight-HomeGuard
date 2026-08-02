@@ -30,6 +30,8 @@ import { CommandPalette } from './components/CommandPalette';
 import { IoTSimulator } from './components/IoTSimulator';
 import { cn } from './lib/utils';
 import { AleraSightLogo, LogoSymbol } from './components/Logo';
+import { UserManager } from './components/UserManager';
+import { AccountSettings } from './components/AccountSettings';
 
 export default function App() {
   const { 
@@ -130,7 +132,7 @@ export default function App() {
     
     { id: 'raw', label: 'Raw Data Logs', icon: Database, category: 'ADMINISTRASI' },
     { id: 'reports', label: 'Cetak Laporan', icon: FileText, category: 'ADMINISTRASI' },
-    { id: 'users', label: 'Kelola Anggota', icon: Users, category: 'ADMINISTRASI' },
+    { id: 'users', label: currentUser?.role === 'Admin' ? 'Kelola Anggota' : 'Pengaturan Akun', icon: Users, category: 'ADMINISTRASI' },
     { id: 'audit', label: 'Audit Trail', icon: ShieldAlert, category: 'ADMINISTRASI' },
     //{ id: 'backup', label: 'Backup Restore', icon: CloudLightning, category: 'ADMINISTRASI' },
     { id: 'settings', label: 'Parameter SHT20', icon: SettingsIcon, category: 'ADMINISTRASI' },
@@ -725,7 +727,11 @@ export default function App() {
               >
                 {currentPage === 'dashboard' && <Dashboard />}
                 {currentPage === 'devices' && <DeviceManager />}
-                {currentPage === 'users' && <UserManager currentUser={currentUser} />}
+                {currentPage === 'users' && (
+                  currentUser?.role === 'Admin'
+                    ? <UserManager currentUser={currentUser} />
+                    : <AccountSettings />
+                )}
                 {currentPage === 'map' && <MapView />}
                 {currentPage === 'raw' && <RawData />}
                 {currentPage === 'reports' && <Reports />}
