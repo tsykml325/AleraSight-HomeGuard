@@ -120,19 +120,19 @@ export default function App() {
     { id: 'devices', label: 'Perangkat IoT', icon: Cpu, category: 'UTAMA' },
     { id: 'map', label: 'Peta GIS', icon: MapIcon, category: 'UTAMA' },
     
-    { id: 'alarms', label: 'Alarm & Insiden', icon: Flame, category: 'OPERASIONAL', badge: alarms.filter(a => a.status !== 'resolved').length },
+    { id: 'alarms', label: 'Insiden', icon: Flame, category: 'OPERASIONAL', badge: alarms.filter(a => a.status !== 'resolved').length },
     { id: 'maintenance', label: 'Pemeliharaan', icon: Calendar, category: 'OPERASIONAL' },
-    { id: 'analytics', label: 'Analisis Tren', icon: BarChart3, category: 'OPERASIONAL' },
-    { id: 'iot', label: 'Diagnostik MCU', icon: Terminal, category: 'OPERASIONAL' },
+    //{ id: 'analytics', label: 'Analisis Tren', icon: BarChart3, category: 'OPERASIONAL' },
+    //{ id: 'iot', label: 'Diagnostik MCU', icon: Terminal, category: 'OPERASIONAL' },
     
     { id: 'prediction', label: 'AI Fire Risk', icon: Sparkles, category: 'INTELLIGENCE' },
-    { id: 'telegram', label: 'Notifikasi Bot', icon: MessageSquare, category: 'INTELLIGENCE' },
+    //{ id: 'telegram', label: 'Notifikasi Bot', icon: MessageSquare, category: 'INTELLIGENCE' },
     
     { id: 'raw', label: 'Raw Data Logs', icon: Database, category: 'ADMINISTRASI' },
     { id: 'reports', label: 'Cetak Laporan', icon: FileText, category: 'ADMINISTRASI' },
     { id: 'users', label: 'Kelola Anggota', icon: Users, category: 'ADMINISTRASI' },
     { id: 'audit', label: 'Audit Trail', icon: ShieldAlert, category: 'ADMINISTRASI' },
-    { id: 'backup', label: 'Backup Restore', icon: CloudLightning, category: 'ADMINISTRASI' },
+    //{ id: 'backup', label: 'Backup Restore', icon: CloudLightning, category: 'ADMINISTRASI' },
     { id: 'settings', label: 'Parameter SHT20', icon: SettingsIcon, category: 'ADMINISTRASI' },
   ];
 
@@ -247,7 +247,7 @@ export default function App() {
             const items = navItems.filter(item => {
               if (item.category !== cat) return false;
               if (currentUser?.role === 'Operator') {
-                const adminOnlyPages = ['settings', 'backup', 'audit'];
+                const adminOnlyPages = ['settings', 'audit'];
                 if (adminOnlyPages.includes(item.id)) return false;
               }
               return true;
