@@ -38,7 +38,12 @@ export default function App() {
     searchTerm, setSearchTerm, addUser, currentUser, setCurrentUser, addAuditLog
   } = useAppState();
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // DIHAPUS: state isLoggedIn terpisah (useState(false)) yang menyebabkan
+  // pengguna selalu ter-logout saat refresh, karena tidak pernah tersimpan.
+  // Sekarang status login cukup ditentukan dari currentUser (sudah persisten
+  // ke localStorage lewat StateContext) — satu sumber kebenaran saja.
+  const isLoggedIn = currentUser !== null;
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   
@@ -103,7 +108,6 @@ export default function App() {
         users={users}
         onRegister={addUser}
         onLogin={(user) => {
-          setIsLoggedIn(true);
           setCurrentUser(user);
           addAuditLog("LOGIN", "auth", `Pengguna ${user.name} (${user.role}) berhasil masuk ke sistem`, user);
         }} 
@@ -302,7 +306,6 @@ export default function App() {
               if (currentUser) {
                 addAuditLog("LOGOUT", "auth", `Pengguna ${currentUser.name} (${currentUser.role}) keluar dari sistem`, currentUser);
               }
-              setIsLoggedIn(false);
               setCurrentUser(null);
             }}
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-red-400 hover:bg-red-950/20 rounded-xl transition-all group font-bold text-xs uppercase tracking-wider"
@@ -692,7 +695,6 @@ export default function App() {
                               addAuditLog("LOGOUT", "auth", `Pengguna ${currentUser.name} (${currentUser.role}) keluar dari sistem`, currentUser);
                             }
                             setIsProfileOpen(false);
-                            setIsLoggedIn(false);
                             setCurrentUser(null);
                           }}
                           className="w-full flex items-center justify-center gap-2 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[10px] font-black uppercase italic tracking-widest rounded-xl transition-all"
