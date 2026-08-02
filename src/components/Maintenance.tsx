@@ -5,8 +5,8 @@ import { formatDate, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function Maintenance() {
-  const { maintenance, addMaintenanceSchedule, completeMaintenance, devices, users } = useAppState();
-  const [filterType, setFilterType] = useState<'all' | 'Kalibrasi' | 'Inspeksi' | 'Perbaikan'>('all');
+  const { maintenance, addMaintenanceSchedule, completeMaintenance, devices, users, currentUser } = useAppState();
+  const isOperator = currentUser?.role === 'Operator';
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | null>(null);
   const [notes, setNotes] = useState('');
@@ -18,13 +18,18 @@ export function Maintenance() {
   const [scheduledDate, setScheduledDate] = useState('');
   const [notesInput, setNotesInput] = useState('');
 
-  const filteredRecords = maintenance.filter(m => filterType === 'all' || m.type === filterType);
+  // Tiket yang relevan buat user ini: Operator cuma lihat tiket miliknya sendiri, Admin lihat semua
+  const scopedMaintenance = isOperator
+  ? maintenance.filter(m => m.technician === currentUser?.name)
+  : maintenance;
+
+  const filteredRecords = scopedMaintenance.filter(m => filterType === 'all' || m.type === filterType);
 
   const stats = {
-    total: maintenance.length,
-    scheduled: maintenance.filter(m => m.status === 'scheduled').length,
-    completed: maintenance.filter(m => m.status === 'completed').length,
-    overdue: maintenance.filter(m => m.status === 'overdue').length,
+  total: scopedMaintenance.length,
+  scheduled: scopedMaintenance.filter(m => m.status === 'scheduled').length,
+  completed: scopedMaintenance.filter(m => m.status === 'completed').length,
+  overdue: scopedMaintenance.filter(m => m.status === 'overdue').length,
   };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -201,7 +206,7 @@ export function Maintenance() {
 
         {filteredRecords.length === 0 && (
           <div className="col-span-full text-center py-16 bg-white rounded-3xl border border-slate-200 text-slate-400 font-black italic uppercase tracking-wider">
-            Tidak ada data pemeliharaan yang sesuai.
+            {isOperator ? 'Belum ada tiket pemeliharaan yang ditugaskan ke Anda.' : 'Tidak ada data pemeliharaan yang sesuai.'}
           </div>
         )}
       </div>
