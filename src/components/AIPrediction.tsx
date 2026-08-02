@@ -8,13 +8,13 @@ import {
 import { cn } from '../lib/utils';
 
 // ========== Konfigurasi dari Environment Variable (diisi di Vercel) ==========
-// PENTING: Project ini pakai Vite, bukan Next.js — env var HARUS pakai prefix VITE_
+// PENTING: Project ini pakai Vite — env var HARUS pakai prefix VITE_
 // dan diakses lewat import.meta.env, bukan process.env
 const CCTV_URL = import.meta.env.VITE_CCTV_URL || '';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-interface DeteksiTerbaru {
+interface DeteksiRow {
   hasil: 'API' | 'BUKAN_API';
   confidence: number | null;
   latitude: number | null;
@@ -43,17 +43,18 @@ export function AIPrediction() {
     return () => clearInterval(interval);
   }, []);
 
-  // ========== State untuk Data Deteksi Asli dari Supabase ==========
-  const [deteksiTerbaru, setDeteksiTerbaru] = useState<DeteksiTerbaru | null>(null);
+  // ========== State untuk Riwayat Deteksi Asli dari Supabase ==========
+  // riwayat[0] adalah data TERBARU, dipakai juga untuk kartu status di atas
+  const [riwayat, setRiwayat] = useState<DeteksiRow[]>([]);
   const [backendError, setBackendError] = useState(false);
 
   useEffect(() => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
 
-    const fetchLatestDetection = async () => {
+    const fetchRiwayat = async () => {
       try {
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/deteksi_cv?select=hasil,confidence,latitude,longitude,waktu_deteksi&order=waktu_deteksi.desc&limit=1`,
+          `${SUPABASE_URL}/rest/v1/deteksi_cv?select=hasil,confidence,latitude,longitude,waktu_deteksi&order=waktu_deteksi.desc&limit=10`,
           {
             headers: {
               apikey: SUPABASE_ANON_KEY,
@@ -62,37 +63,46 @@ export function AIPrediction() {
           }
         );
         if (!res.ok) throw new Error(`Status ${res.status}`);
-        const data: DeteksiTerbaru[] = await res.json();
+        const data: DeteksiRow[] = await res.json();
+        setRiwayat(data);
         if (data.length > 0) {
-          setDeteksiTerbaru(data[0]);
           setVisionFireDetected(data[0].hasil === 'API');
-          setBackendError(false);
         }
+        setBackendError(false);
       } catch (err) {
-        console.error('[SUPABASE] Gagal ambil data deteksi terbaru:', err);
+        console.error('[SUPABASE] Gagal ambil riwayat deteksi:', err);
         setBackendError(true);
       }
     };
 
-    fetchLatestDetection();
-    const interval = setInterval(fetchLatestDetection, 5000);
+    fetchRiwayat();
+    const interval = setInterval(fetchRiwayat, 5000);
     return () => clearInterval(interval);
   }, [setVisionFireDetected]);
 
-  // Fallback ke simulasi kalau data asli belum tersedia (env var belum diisi / fetch belum sukses)
-  const displayConfidence = deteksiTerbaru?.confidence != null
-    ? `${(deteksiTerbaru.confidence * 100).toFixed(1)}%`
-    : (visionFireDetected ? '97.3%' : '88.4%');
+  const terbaru = riwayat[0] || null;
 
-  const displayWaktu = deteksiTerbaru?.waktu_deteksi
-    ? new Date(deteksiTerbaru.waktu_deteksi).toLocaleTimeString('id-ID')
-    : '12:21:03';
+  const displayConfidence = terbaru?.confidence != null
+    ? `${(terbaru.confidence * 100).toFixed(1)}%`
+    : '—';
 
-  const displayKoordinat = deteksiTerbaru?.latitude != null && deteksiTerbaru?.longitude != null
-    ? `${deteksiTerbaru.latitude.toFixed(4)}, ${deteksiTerbaru.longitude.toFixed(4)}`
+  const displayWaktu = terbaru?.waktu_deteksi
+    ? new Date(terbaru.waktu_deteksi).toLocaleTimeString('id-ID')
+    : '—';
+
+  const displayKoordinat = terbaru?.latitude != null && terbaru?.longitude != null
+    ? `${terbaru.latitude.toFixed(4)}, ${terbaru.longitude.toFixed(4)}`
     : (activeDevice.location ? `${activeDevice.location.lat.toFixed(4)}, ${activeDevice.location.lng.toFixed(4)}` : '-6.8922, 107.6181');
 
-  // Fluctuating CPU usage simulation
+  // Hitung jumlah deteksi "API" hari ini dari riwayat yang sudah diambil
+  const apiHariIni = riwayat.filter(r => {
+    if (r.hasil !== 'API') return false;
+    const tgl = new Date(r.waktu_deteksi);
+    const sekarang = new Date();
+    return tgl.toDateString() === sekarang.toDateString();
+  }).length;
+
+  // Fluctuating CPU usage simulation (tetap simulasi, karena tidak ada data CPU asli dikirim dari Raspi)
   const [simulatedCpu, setSimulatedCpu] = useState(21.5);
   useEffect(() => {
     const interval = setInterval(() => {
@@ -104,7 +114,7 @@ export function AIPrediction() {
     return () => clearInterval(interval);
   }, []);
 
-  // Raspi Uptime Ticker
+  // Raspi Uptime Ticker (tetap simulasi, karena tidak ada data uptime asli dikirim dari Raspi)
   const [uptimeSeconds, setUptimeSeconds] = useState(1528);
   useEffect(() => {
     const interval = setInterval(() => {
@@ -120,67 +130,15 @@ export function AIPrediction() {
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleToggleFire = (isFire: boolean) => {
-    setVisionFireDetected(isFire);
-    addAuditLog(
-      isFire ? "AI_FIRE_DETECTED" : "AI_FIRE_RESOLVED", 
-      isFire ? "alarm" : "system", 
-      `Sistem CNN mendeteksi status ${isFire ? 'API' : 'NORMAL (Bukan Api)'} pada perangkat ${activeDevice.name}`
-    );
-  };
-
   return (
     <div className="space-y-6 pb-12 text-zinc-100 bg-[#0f0f11] p-6 sm:p-8 rounded-[2.5rem] border border-zinc-800 shadow-2xl font-sans">
-      
-      {/* Interactive Simulation Command Center */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/80 p-4 rounded-2xl border border-zinc-800">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-            <span className="text-[11px] font-black tracking-widest text-zinc-400 uppercase">Simulator Integrasi AI Fire Risk</span>
-          </div>
-          <p className="text-xs font-semibold text-zinc-500">Gunakan pintasan ini untuk menguji kondisi darurat vs aman secara interaktif.</p>
+
+      {backendError && (
+        <div className="bg-amber-950/40 border border-amber-900/50 text-amber-400 text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" />
+          Gagal mengambil data terbaru dari Supabase — menampilkan data terakhir yang berhasil diambil.
         </div>
-        <div className="flex flex-wrap gap-2.5">
-          <button
-            onClick={() => handleToggleFire(false)}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-extrabold tracking-wider uppercase transition-all flex items-center gap-1.5 border",
-              !visionFireDetected 
-                ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 shadow-md shadow-emerald-950/20" 
-                : "bg-zinc-800 text-zinc-400 border-transparent hover:bg-zinc-700 hover:text-zinc-200"
-            )}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            Set Aman (Bukan Api)
-          </button>
-          <button
-            onClick={() => handleToggleFire(true)}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-extrabold tracking-wider uppercase transition-all flex items-center gap-1.5 border",
-              visionFireDetected 
-                ? "bg-rose-500/20 text-rose-400 border-rose-500/30 shadow-md shadow-rose-950/20 animate-pulse" 
-                : "bg-zinc-800 text-zinc-400 border-transparent hover:bg-zinc-700 hover:text-zinc-200"
-            )}
-          >
-            <Flame className="w-4 h-4" />
-            Picu Deteksi Api (Bahaya)
-          </button>
-          <button
-            onClick={() => setRaspiOnline(!raspiOnline)}
-            className={cn(
-              "px-3.5 py-2 rounded-xl text-xs font-extrabold tracking-wider uppercase transition-all flex items-center gap-1.5 border",
-              raspiOnline 
-                ? "bg-blue-500/10 text-blue-400 border-blue-500/20" 
-                : "bg-zinc-800 text-zinc-500 border-transparent"
-            )}
-            title="Toggle status online Raspberry Pi"
-          >
-            <Cpu className="w-4 h-4" />
-            Pi: {raspiOnline ? 'ONLINE' : 'OFFLINE'}
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Top Counters Dashboard Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -213,9 +171,9 @@ export function AIPrediction() {
           <div className="mt-2">
             <h2 className={cn(
               "text-2xl font-black italic tracking-tight leading-none font-mono",
-              visionFireDetected ? "text-rose-500" : "text-zinc-300"
+              apiHariIni > 0 ? "text-rose-500" : "text-zinc-300"
             )}>
-              {visionFireDetected ? "1" : "0"}
+              {apiHariIni}
             </h2>
             <p className="text-[10px] font-bold text-zinc-500 mt-1.5 uppercase font-mono">
               Terakhir: {displayWaktu}
@@ -250,7 +208,7 @@ export function AIPrediction() {
               "text-2xl font-black italic tracking-tight leading-none font-mono",
               visionFireDetected ? "text-emerald-400" : "text-zinc-500"
             )}>
-              {visionFireDetected ? "1" : "0"}
+              {apiHariIni}
             </h2>
             <p className="text-[10px] font-bold text-zinc-500 mt-1.5 uppercase font-mono">
               {visionFireDetected ? "Telegram terkirim" : "Telegram standby"}
@@ -272,8 +230,8 @@ export function AIPrediction() {
             {/* Scanline overlay for raw tech look */}
             <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.15)_50%)] bg-[length:100%_4px] opacity-40 z-10"></div>
 
-            {/* Snapshot CCTV Asli (menggantikan placeholder ikon kamera) */}
-            {CCTV_URL && !imgError ? (
+            {/* Snapshot CCTV Asli - selalu dirender supaya bisa auto-pulih kalau sempat gagal */}
+            {CCTV_URL && (
               <img
                 src={imgSrc}
                 alt="Snapshot CCTV"
@@ -281,8 +239,10 @@ export function AIPrediction() {
                 onError={() => setImgError(true)}
                 onLoad={() => setImgError(false)}
               />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            )}
+
+            {(!CCTV_URL || imgError) && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-zinc-950">
                 <div className="p-5 rounded-full bg-zinc-900/50 border border-zinc-800/60 flex items-center justify-center">
                   <Camera className="w-10 h-10 text-zinc-700" />
                 </div>
@@ -370,7 +330,7 @@ export function AIPrediction() {
                 "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider font-mono",
                 visionFireDetected ? "bg-blue-950 text-blue-400 border border-blue-900" : "text-zinc-500"
               )}>
-                {visionFireDetected ? "Terkirim (1x)" : "—"}
+                {visionFireDetected ? "Terkirim" : "—"}
               </span>
             </div>
 
@@ -410,7 +370,7 @@ export function AIPrediction() {
 
       </div>
 
-      {/* Detection Logs Table */}
+      {/* Detection Logs Table - SEKARANG DARI DATA ASLI SUPABASE */}
       <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-5 shadow-xl space-y-4">
         <h3 className="text-xs font-black tracking-widest text-zinc-400 uppercase">Riwayat Deteksi Terbaru</h3>
         
@@ -422,92 +382,44 @@ export function AIPrediction() {
                 <th className="py-3 px-4">Sistem</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 font-mono">Confidence</th>
-                <th className="py-3 px-4">Lokasi</th>
-                <th className="py-3 px-4">Notifikasi</th>
+                <th className="py-3 px-4">Koordinat</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60 text-xs font-medium text-zinc-300">
-              
-              {/* Dynamic live simulation row if active */}
-              {visionFireDetected && (
-                <tr className="bg-rose-500/5 font-bold text-rose-200">
-                  <td className="py-3.5 px-4 font-mono">{displayWaktu}</td>
-                  <td className="py-3.5 px-4">CNN/CCTV</td>
-                  <td className="py-3.5 px-4">
-                    <span className="px-2.5 py-1 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 font-black text-[9px] uppercase tracking-wider">
-                      Api
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 font-mono">{displayConfidence}</td>
-                  <td className="py-3.5 px-4">Ruangan Tamu</td>
-                  <td className="py-3.5 px-4">
-                    <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/20 font-black text-[9px] uppercase tracking-wider">
-                      Terkirim
-                    </span>
+              {riwayat.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-6 px-4 text-center text-zinc-500">
+                    {SUPABASE_URL ? "Belum ada data deteksi" : "Supabase belum dikonfigurasi"}
                   </td>
                 </tr>
+              ) : (
+                riwayat.map((row, idx) => (
+                  <tr key={idx} className={cn(row.hasil === 'API' ? "bg-rose-500/5 font-bold text-rose-200" : "opacity-80")}>
+                    <td className="py-3.5 px-4 font-mono">
+                      {new Date(row.waktu_deteksi).toLocaleTimeString('id-ID')}
+                    </td>
+                    <td className="py-3.5 px-4">CNN/CCTV</td>
+                    <td className="py-3.5 px-4">
+                      <span className={cn(
+                        "px-2.5 py-1 rounded font-black text-[9px] uppercase tracking-wider",
+                        row.hasil === 'API'
+                          ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                          : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      )}>
+                        {row.hasil === 'API' ? 'Api' : 'Normal'}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 font-mono">
+                      {row.confidence != null ? `${(row.confidence * 100).toFixed(1)}%` : '—'}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-[10px]">
+                      {row.latitude != null && row.longitude != null
+                        ? `${row.latitude.toFixed(4)}, ${row.longitude.toFixed(4)}`
+                        : '—'}
+                    </td>
+                  </tr>
+                ))
               )}
-
-              {/* Static Simulated Log 1 */}
-              <tr className={cn(visionFireDetected ? "opacity-75" : "font-semibold")}>
-                <td className="py-3.5 px-4 font-mono">12:15:44</td>
-                <td className="py-3.5 px-4">IoT</td>
-                <td className="py-3.5 px-4">
-                  <span className="px-2.5 py-1 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 font-black text-[9px] uppercase tracking-wider">
-                    Alarm
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 font-mono">—</td>
-                <td className="py-3.5 px-4">Ruangan Dapur</td>
-                <td className="py-3.5 px-4">
-                  <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/20 font-black text-[9px] uppercase tracking-wider">
-                    Terkirim
-                  </span>
-                </td>
-              </tr>
-
-              {/* Log 2 */}
-              <tr className="opacity-70">
-                <td className="py-3.5 px-4 font-mono">11:45:22</td>
-                <td className="py-3.5 px-4">CNN/CCTV</td>
-                <td className="py-3.5 px-4">
-                  <span className="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-black text-[9px] uppercase tracking-wider">
-                    Normal
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 font-mono">88.1%</td>
-                <td className="py-3.5 px-4">Ruangan Tamu</td>
-                <td className="py-3.5 px-4 text-zinc-500 font-mono">—</td>
-              </tr>
-
-              {/* Log 3 */}
-              <tr className="opacity-70">
-                <td className="py-3.5 px-4 font-mono">10:30:11</td>
-                <td className="py-3.5 px-4">CNN/CCTV</td>
-                <td className="py-3.5 px-4">
-                  <span className="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-black text-[9px] uppercase tracking-wider">
-                    Normal
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 font-mono">92.4%</td>
-                <td className="py-3.5 px-4">Ruangan Tamu</td>
-                <td className="py-3.5 px-4 text-zinc-500 font-mono">—</td>
-              </tr>
-
-              {/* Log 4 */}
-              <tr className="opacity-70">
-                <td className="py-3.5 px-4 font-mono">09:15:44</td>
-                <td className="py-3.5 px-4">IoT</td>
-                <td className="py-3.5 px-4">
-                  <span className="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-black text-[9px] uppercase tracking-wider">
-                    Normal
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 font-mono">—</td>
-                <td className="py-3.5 px-4">Ruangan Dapur</td>
-                <td className="py-3.5 px-4 text-zinc-500 font-mono">—</td>
-              </tr>
-
             </tbody>
           </table>
         </div>
