@@ -156,7 +156,27 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('alerasight_current_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error loading currentUser dari localStorage:", e);
+      }
+    }
+    return null;
+  });
+
+  // Simpan currentUser ke localStorage setiap kali berubah (login/logout),
+  // supaya tidak ter-reset ke null saat halaman di-refresh
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('alerasight_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('alerasight_current_user');
+    }
+  }, [currentUser]);
 
   const currentUserRef = React.useRef<User | null>(null);
   useEffect(() => {
@@ -239,6 +259,63 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, []);
 
+  // ========== Cek Status Raspi Online/Offline (real, dari endpoint /status) ==========
+  const CCTV_URL = import.meta.env.VITE_CCTV_URL || '';
+  const STATUS_URL = CCTV_URL ? CCTV_URL.replace('/snapshot', '/status') : '';
+
+  useEffect(() => {
+    if (!STATUS_URL) return;
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(STATUS_URL, { signal: AbortSignal.timeout(5000) });
+        setRaspiOnline(res.ok);
+      } catch (err) {
+        setRaspiOnline(false);
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 10000); // cek tiap 10 detik
+    return () => clearInterval(interval);
+  }, [STATUS_URL]);
+
+  // ========== Cek Status Deteksi Api Real-time (dari Supabase, dengan batas waktu validitas) ==========
+  useEffect(() => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+
+    const FIRE_VALID_DURATION_MS = 60 * 1000; // anggap "masih ada api" kalau deteksi terakhir < 60 detik lalu
+
+    const checkFireStatus = async () => {
+      try {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/deteksi_cv?select=hasil,waktu_deteksi&order=waktu_deteksi.desc&limit=1`,
+          {
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+          }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.length > 0 && data[0].hasil === 'API') {
+          const detectedAt = new Date(data[0].waktu_deteksi).getTime();
+          const isStillRecent = Date.now() - detectedAt < FIRE_VALID_DURATION_MS;
+          setVisionFireDetected(isStillRecent);
+        } else {
+          setVisionFireDetected(false);
+        }
+      } catch (err) {
+        console.error('[SUPABASE] Gagal cek status deteksi api:', err);
+      }
+    };
+
+    checkFireStatus();
+    const interval = setInterval(checkFireStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('alerasight_users');
     if (saved) {
@@ -292,21 +369,20 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
   const [visionFireDetected, setVisionFireDetected] = useState(false);
 
   // Time-series sensor logs
-  // const [sensorData, setSensorData] = useState<SensorData[]>(() => {
-  //   // Generate initial logs for past 30 periods
-  //   return Array.from({ length: 30 }, (_, i) => {
-  //     const ts = new Date(Date.now() - (30 - i) * 10000).toISOString();
-  //     return {
-  //       id: `LOG-${100 + i}`,
-  //       deviceId: "DEV-001",
-  //       gas: 100 + Math.floor(Math.random() * 40),
-  //       temperature: 24 + Math.floor(Math.random() * 5),
-  //       status: "aman" as const,
-  //       timestamp: ts
-  //     };
-  //   });
-  // });
-  const [sensorData, setSensorData] = useState<SensorData[]>([]);
+  const [sensorData, setSensorData] = useState<SensorData[]>(() => {
+    // Generate initial logs for past 30 periods
+    return Array.from({ length: 30 }, (_, i) => {
+      const ts = new Date(Date.now() - (30 - i) * 10000).toISOString();
+      return {
+        id: `LOG-${100 + i}`,
+        deviceId: "DEV-001",
+        gas: 100 + Math.floor(Math.random() * 40),
+        temperature: 24 + Math.floor(Math.random() * 5),
+        status: "aman" as const,
+        timestamp: ts
+      };
+    });
+  });
 
   // Notifications state
   const [notifications, setNotifications] = useState<Notification[]>([
@@ -361,130 +437,86 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
     setAuditLogs(prev => [newLog, ...prev]);
   }, []);
 
+  // 2. Real-time Simulator Tick Link
   useEffect(() => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
-  
-    const headers = {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    };
-  
-    const fetchSensorLogs = async () => {
-      try {
-        const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/sensor_logs?select=id,device_id,temperature,smoke_level,humidity,created_at,status&order=created_at.desc&limit=50`,
-          { headers }
-        );
-        if (!res.ok) throw new Error(`sensor_logs status ${res.status}`);
-        const rows = await res.json();
-        if (rows.length === 0) return;
-  
-        const latest = rows[0]; // data terbaru (order desc)
-        setSimulatedGas(latest.smoke_level);
-        setSimulatedTemp(latest.temperature);
-        setSimulatedHum(latest.humidity);
-        setEsp32Online(true);
-  
-        const mapped: SensorData[] = rows.slice().reverse().map((row: any) => ({
-          id: String(row.id),
-          deviceId: row.device_id,
-          gas: row.smoke_level,
-          temperature: row.temperature,
-          status: row.status,
-          timestamp: row.created_at,
-        }));
-        setSensorData(mapped);
-      } catch (err) {
-        console.error('[SUPABASE] Gagal ambil data sensor_logs:', err);
-        setEsp32Online(false);
-      }
-    };
-  
-    fetchSensorLogs();
-    const interval = setInterval(fetchSensorLogs, 5000); // sesuaikan dgn kecepatan ESP32 kirim data
+    if (!esp32Online) return;
+
+    const interval = setInterval(() => {
+      // Simulate small fluctuations
+      const fluxGas = Math.floor(Math.random() * 6) - 3;
+      const fluxTemp = Math.floor(Math.random() * 2) - 1;
+      const fluxHum = Math.floor(Math.random() * 4) - 2;
+
+      setSimulatedGas(prev => {
+        const newVal = Math.max(20, prev + fluxGas);
+        return newVal;
+      });
+      setSimulatedTemp(prev => {
+        const newVal = Math.max(15, prev + fluxTemp);
+        return newVal;
+      });
+      setSimulatedHum(prev => {
+        const newVal = Math.min(100, Math.max(5, prev + fluxHum));
+        return newVal;
+      });
+
+      // Update active device list details
+      setDevices(prev => prev.map(d => {
+        if (d.id === activeDeviceId) {
+          // Determine status based on thresholds
+          let status: 'aman' | 'waspada' | 'bahaya' = 'aman';
+          if (simulatedGas >= settings.gasThreshold || simulatedTemp >= settings.tempThreshold) {
+            status = 'bahaya';
+          } else if (simulatedGas >= (settings.gasThreshold * 0.6) || simulatedTemp >= (settings.tempThreshold * 0.8)) {
+            status = 'waspada';
+          }
+
+          // If status changes, trigger alarms/notifications
+          if (status !== d.status) {
+            // Trigger side effects
+            if (status !== 'aman') {
+              triggerAlarmManually(d.id, status === 'bahaya' ? 'critical' : 'warning');
+            }
+          }
+
+          return {
+            ...d,
+            status,
+            lastActive: new Date().toISOString()
+          };
+        }
+        return d;
+      }));
+
+    }, 3500);
+
     return () => clearInterval(interval);
-  }, []);
+  }, [esp32Online, activeDeviceId, simulatedGas, simulatedTemp, simulatedHum, settings.gasThreshold, settings.tempThreshold]);
 
-  // // 2. Real-time Simulator Tick Link
-  // useEffect(() => {
-  //   if (!esp32Online) return;
+  // Feed simulated parameters into telemetry charts
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!esp32Online) return;
 
-  //   const interval = setInterval(() => {
-  //     // Simulate small fluctuations
-  //     const fluxGas = Math.floor(Math.random() * 6) - 3;
-  //     const fluxTemp = Math.floor(Math.random() * 2) - 1;
-  //     const fluxHum = Math.floor(Math.random() * 4) - 2;
+      const newRecord: SensorData = {
+        id: `LOG-${Date.now()}`,
+        deviceId: activeDeviceId,
+        gas: simulatedGas,
+        temperature: simulatedTemp,
+        timestamp: new Date().toISOString(),
+        status: simulatedGas >= settings.gasThreshold || simulatedTemp >= settings.tempThreshold ? "bahaya" : 
+                simulatedGas >= (settings.gasThreshold * 0.6) || simulatedTemp >= (settings.tempThreshold * 0.8) ? "waspada" : "aman"
+      };
 
-  //     setSimulatedGas(prev => {
-  //       const newVal = Math.max(20, prev + fluxGas);
-  //       return newVal;
-  //     });
-  //     setSimulatedTemp(prev => {
-  //       const newVal = Math.max(15, prev + fluxTemp);
-  //       return newVal;
-  //     });
-  //     setSimulatedHum(prev => {
-  //       const newVal = Math.min(100, Math.max(5, prev + fluxHum));
-  //       return newVal;
-  //     });
+      setSensorData(prev => {
+        const updated = [...prev, newRecord];
+        if (updated.length > 50) updated.shift(); // keep 50 max
+        return updated;
+      });
+    }, 5000);
 
-  //     // Update active device list details
-  //     setDevices(prev => prev.map(d => {
-  //       if (d.id === activeDeviceId) {
-  //         // Determine status based on thresholds
-  //         let status: 'aman' | 'waspada' | 'bahaya' = 'aman';
-  //         if (simulatedGas >= settings.gasThreshold || simulatedTemp >= settings.tempThreshold) {
-  //           status = 'bahaya';
-  //         } else if (simulatedGas >= (settings.gasThreshold * 0.6) || simulatedTemp >= (settings.tempThreshold * 0.8)) {
-  //           status = 'waspada';
-  //         }
-
-  //         // If status changes, trigger alarms/notifications
-  //         if (status !== d.status) {
-  //           // Trigger side effects
-  //           if (status !== 'aman') {
-  //             triggerAlarmManually(d.id, status === 'bahaya' ? 'critical' : 'warning');
-  //           }
-  //         }
-
-  //         return {
-  //           ...d,
-  //           status,
-  //           lastActive: new Date().toISOString()
-  //         };
-  //       }
-  //       return d;
-  //     }));
-
-  //   }, 3500);
-
-  //   return () => clearInterval(interval);
-  // }, [esp32Online, activeDeviceId, simulatedGas, simulatedTemp, simulatedHum, settings.gasThreshold, settings.tempThreshold]);
-
-  // // Feed simulated parameters into telemetry charts
-  // useEffect(() => {
-  //   const timer = setInterval(() => {
-  //     if (!esp32Online) return;
-
-  //     const newRecord: SensorData = {
-  //       id: `LOG-${Date.now()}`,
-  //       deviceId: activeDeviceId,
-  //       gas: simulatedGas,
-  //       temperature: simulatedTemp,
-  //       timestamp: new Date().toISOString(),
-  //       status: simulatedGas >= settings.gasThreshold || simulatedTemp >= settings.tempThreshold ? "bahaya" : 
-  //               simulatedGas >= (settings.gasThreshold * 0.6) || simulatedTemp >= (settings.tempThreshold * 0.8) ? "waspada" : "aman"
-  //     };
-
-  //     setSensorData(prev => {
-  //       const updated = [...prev, newRecord];
-  //       if (updated.length > 50) updated.shift(); // keep 50 max
-  //       return updated;
-  //     });
-  //   }, 5000);
-
-  //   return () => clearInterval(timer);
-  // }, [simulatedGas, simulatedTemp, activeDeviceId, esp32Online]);
+    return () => clearInterval(timer);
+  }, [simulatedGas, simulatedTemp, activeDeviceId, esp32Online]);
 
   // Triggering custom mock telegram dispatch
   const triggerMockTelegramMessage = useCallback((message: string) => {
