@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export function Maintenance() {
   const { maintenance, addMaintenanceSchedule, completeMaintenance, devices, users, currentUser } = useAppState();
   const isOperator = currentUser?.role === 'Operator';
+  const [filterType, setFilterType] = useState<'all' | 'Kalibrasi' | 'Inspeksi' | 'Perbaikan'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | null>(null);
   const [notes, setNotes] = useState('');
